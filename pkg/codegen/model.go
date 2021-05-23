@@ -305,13 +305,22 @@ func (s *StructType) Generate(out *Emitter) {
 	out.Print("}")
 }
 
+type NumericValidation struct {
+	MultipleOf   *float64
+	Min          *float64
+	ExclusiveMin *float64
+	Max          *float64
+	ExclusiveMax *float64
+}
+
 type StructField struct {
-	Name         string
-	Type         Type
-	Comment      string
-	Tags         string
-	JSONName     string
-	DefaultValue interface{}
+	Name              string
+	Type              Type
+	Comment           string
+	Tags              string
+	JSONName          string
+	DefaultValue      interface{}
+	NumericValidation *NumericValidation
 }
 
 func (f *StructField) GetName() string {

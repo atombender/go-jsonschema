@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "https://example.com/numValidations",
+  "type": "object",
+  "properties": {
+    "myPositiveValidatedFloat": {
+      "type": "number",
+      "multipleOf": 10,
+      "maximum": 90,
+      "minimum": 0
+    },
+    "myExcludedNegativeValidatedFloat": {
+      "type": "number",
+      "multipleOf": 10,
+      "exclusiveMinimum": -90,
+      "exclusiveMaximum": 0
+    }
+  }
+}

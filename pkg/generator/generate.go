@@ -410,8 +410,7 @@ func (g *schemaGenerator) generateReferencedType(ref string) (codegen.Type, erro
 	}, nil
 }
 
-func (g *schemaGenerator) generateDeclaredType(
-	t *schemas.Type, scope nameScope) (codegen.Type, error) {
+func (g *schemaGenerator) generateDeclaredType(t *schemas.Type, scope nameScope) (codegen.Type, error) {
 	if decl, ok := g.output.declsBySchema[t]; ok {
 		return &codegen.NamedType{Decl: decl}, nil
 	}
@@ -454,6 +453,17 @@ func (g *schemaGenerator) generateDeclaredType(
 					defaultValue: litter.Sdump(f.DefaultValue),
 				})
 			}
+			if f.NumericValidation != nil {
+				validators = append(validators, &numericValidator{
+					jsonName:     f.JSONName,
+					fieldName:    f.Name,
+					multipleOf:   f.NumericValidation.MultipleOf,
+					min:          f.NumericValidation.Min,
+					exclusiveMin: f.NumericValidation.ExclusiveMin,
+					max:          f.NumericValidation.Max,
+					exclusiveMax: f.NumericValidation.ExclusiveMax,
+				})
+			}
 			if _, ok := f.Type.(codegen.NullType); ok {
 				validators = append(validators, &nullTypeValidator{
 					fieldName: f.Name,
@@ -479,6 +489,10 @@ func (g *schemaGenerator) generateDeclaredType(
 
 		if len(validators) > 0 {
 			for _, v := range validators {
+				for _, i := range v.desc().requiredImports {
+					g.output.file.Package.AddImport(i, "")
+				}
+
 				if v.desc().hasError {
 					g.output.file.Package.AddImport("fmt", "")
 					break
@@ -523,8 +537,7 @@ func (g *schemaGenerator) generateDeclaredType(
 	return &codegen.NamedType{Decl: &decl}, nil
 }
 
-func (g *schemaGenerator) generateType(
-	t *schemas.Type, scope nameScope) (codegen.Type, error) {
+func (g *schemaGenerator) generateType(t *schemas.Type, scope nameScope) (codegen.Type, error) {
 	if ext := t.GoJSONSchemaExtension; ext != nil {
 		for _, pkg := range ext.Imports {
 			g.output.file.Package.AddImport(pkg, "")
@@ -567,9 +580,7 @@ func (g *schemaGenerator) generateType(
 	}
 }
 
-func (g *schemaGenerator) generateStructType(
-	t *schemas.Type,
-	scope nameScope) (codegen.Type, error) {
+func (g *schemaGenerator) generateStructType(t *schemas.Type, scope nameScope) (codegen.Type, error) {
 	if len(t.Properties) == 0 {
 		if len(t.Required) > 0 {
 			g.warner("Object type with no properties has required fields; " +
@@ -642,6 +653,8 @@ func (g *schemaGenerator) generateStructType(
 			return nil, fmt.Errorf("could not generate type for field %q: %s", name, err)
 		}
 
+		g.setNumericValidations(prop, &structField)
+
 		if prop.Default != nil {
 			structField.DefaultValue = prop.Default
 		} else if isRequired {
@@ -656,6 +669,34 @@ func (g *schemaGenerator) generateStructType(
 		structType.AddField(structField)
 	}
 	return &structType, nil
+}
+
+func (g *schemaGenerator) setNumericValidations(prop *schemas.Type, f *codegen.StructField) {
+	var any bool
+	v := &codegen.NumericValidation{}
+	if prop.MultipleOf != nil {
+		v.MultipleOf = prop.MultipleOf
+		any = true
+	}
+	if prop.ExclusiveMaximum != nil {
+		v.ExclusiveMax = prop.ExclusiveMaximum
+		any = true
+	}
+	if prop.Maximum != nil {
+		v.Max = prop.Maximum
+		any = true
+	}
+	if prop.ExclusiveMinimum != nil {
+		v.ExclusiveMin = prop.ExclusiveMinimum
+		any = true
+	}
+	if prop.Minimum != nil {
+		v.Min = prop.Minimum
+		any = true
+	}
+	if any {
+		f.NumericValidation = v
+	}
 }
 
 func (g *schemaGenerator) generateTypeInline(
