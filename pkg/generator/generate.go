@@ -410,6 +410,21 @@ func (g *schemaGenerator) generateReferencedType(ref string) (codegen.Type, erro
 	}, nil
 }
 
+func (g *schemaGenerator) generatePrimitiveValidators(pt string, f codegen.StructField, pointer bool, validators *[]validator) {
+	switch pt {
+	case "float64", "int":
+		if f.SchemaType.Maximum != nil {
+			*validators = append(*validators, &maximumValidator{
+				jsonName:  f.JSONName,
+				fieldName: f.Name,
+				value:     *f.SchemaType.Maximum,
+				exclusive: f.SchemaType.ExclusiveMaximum,
+				pointer:   pointer,
+			})
+		}
+	}
+}
+
 func (g *schemaGenerator) generateDeclaredType(
 	t *schemas.Type, scope nameScope) (codegen.Type, error) {
 	if decl, ok := g.output.declsBySchema[t]; ok {
@@ -459,6 +474,12 @@ func (g *schemaGenerator) generateDeclaredType(
 					fieldName: f.Name,
 					jsonName:  f.JSONName,
 				})
+			} else if ptr, ok := f.Type.(*codegen.PointerType); ok {
+				if pt, ok := ptr.Type.(codegen.PrimitiveType); ok {
+					g.generatePrimitiveValidators(pt.Type, f, true, &validators)
+				}
+			} else if pt, ok := f.Type.(codegen.PrimitiveType); ok {
+				g.generatePrimitiveValidators(pt.Type, f, false, &validators)
 			} else {
 				t, arrayDepth := f.Type, 0
 				for v, ok := t.(*codegen.ArrayType); ok; v, ok = t.(*codegen.ArrayType) {
@@ -620,9 +641,10 @@ func (g *schemaGenerator) generateStructType(
 		}
 
 		structField := codegen.StructField{
-			Name:     fieldName,
-			Comment:  prop.Description,
-			JSONName: name,
+			Name:       fieldName,
+			Comment:    prop.Description,
+			JSONName:   name,
+			SchemaType: prop,
 		}
 
 		if isRequired {
